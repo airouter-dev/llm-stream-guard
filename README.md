@@ -54,6 +54,8 @@ The verdict is an authorization signal, not a retry loop. Even an `Allow` result
 
 The generic API accepts any item type and a stateful classifier. The example uses a made-up application event; substitute the type already emitted by your transport or parser.
 
+The example's `.next()` helper comes from `futures-util`; the guard itself depends only on the `futures-core` trait and does not require that extension crate.
+
 ```rust,ignore
 use futures_util::StreamExt;
 use llm_stream_guard::{
