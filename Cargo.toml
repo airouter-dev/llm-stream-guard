@@ -19,7 +19,7 @@ openai-json = ["dep:serde_json"]
 
 [dependencies]
 futures-core = "=0.3.31"
-pin-project-lite = "=0.2.16"
+pin-project-lite = "=0.2.17"
 serde_json = { version = "=1.0.151", optional = true }
 
 [dev-dependencies]
