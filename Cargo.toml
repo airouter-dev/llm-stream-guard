@@ -18,13 +18,13 @@ default = []
 openai-json = ["dep:serde_json"]
 
 [dependencies]
-futures-core = "=0.3.31"
-pin-project-lite = "=0.2.16"
-serde_json = { version = "=1.0.151", optional = true }
+futures-core = "0.3.31"
+pin-project-lite = "0.2.16"
+serde_json = { version = "1.0.151", optional = true }
 
 [dev-dependencies]
-eventsource-stream = "=0.2.3"
-futures-util = "=0.3.31"
+eventsource-stream = "0.2.3"
+futures-util = "0.3.31"
 
 [package.metadata.docs.rs]
 all-features = true
