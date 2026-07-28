@@ -1,0 +1,31 @@
+[package]
+name = "llm-stream-guard"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Runtime-neutral replay boundaries for streamed LLM responses"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/airouter-dev/llm-stream-guard"
+documentation = "https://docs.rs/llm-stream-guard"
+readme = "README.md"
+keywords = ["llm", "streaming", "retry", "sse", "replay"]
+categories = ["asynchronous", "network-programming"]
+publish = ["crates-io"]
+exclude = [".github/", "fuzz/", "marketing/"]
+
+[features]
+default = []
+openai-json = ["dep:serde_json"]
+
+[dependencies]
+futures-core = "=0.3.31"
+pin-project-lite = "=0.2.16"
+serde_json = { version = "=1.0.151", optional = true }
+
+[dev-dependencies]
+eventsource-stream = "=0.2.3"
+futures-util = "=0.3.31"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

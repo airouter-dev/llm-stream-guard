@@ -1,0 +1,117 @@
+name: Publish to crates.io
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag to publish, for example v0.2.0
+        required: true
+        type: string
+      confirm_package:
+        description: Type the exact package and version, for example llm-stream-guard@0.2.0
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: crates-io-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Verify and publish an existing crate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: crates-io
+      url: https://crates.io/crates/llm-stream-guard
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.release_tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master, pinned 2026-07-29
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+      - name: Verify immutable release inputs
+        env:
+          CONFIRM_PACKAGE: ${{ inputs.confirm_package }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import subprocess
+
+          metadata = json.loads(
+              subprocess.check_output(
+                  ["cargo", "metadata", "--locked", "--no-deps", "--format-version", "1"],
+                  text=True,
+              )
+          )
+          packages = metadata["packages"]
+          if len(packages) != 1:
+              raise SystemExit("release workflow requires exactly one package")
+          package = packages[0]
+          if package["name"] != "llm-stream-guard":
+              raise SystemExit("unexpected package name")
+
+          expected_tag = f"v{package['version']}"
+          expected_confirmation = f"{package['name']}@{package['version']}"
+          if os.environ["RELEASE_TAG"] != expected_tag:
+              raise SystemExit(f"release tag must be {expected_tag}")
+          if os.environ["CONFIRM_PACKAGE"] != expected_confirmation:
+              raise SystemExit(f"confirmation must be {expected_confirmation}")
+
+          changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+          heading = f"## [{package['version']}] - "
+          if heading not in changelog:
+              raise SystemExit(f"CHANGELOG.md is missing a {package['version']} release heading")
+          if f"{heading}Unreleased" in changelog:
+              raise SystemExit("replace the Unreleased marker with the release date before publishing")
+          PY
+          test "$(git tag --points-at HEAD --list "$RELEASE_TAG")" = "$RELEASE_TAG"
+          git merge-base --is-ancestor HEAD origin/main
+      - name: Verify the crate exists and the version does not
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          crate_status="$(curl --location --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            --header 'User-Agent: llm-stream-guard-release (https://github.com/airouter-dev/llm-stream-guard)' \
+            https://crates.io/api/v1/crates/llm-stream-guard)"
+          if [ "$crate_status" != "200" ]; then
+            echo "::error::The crate does not exist yet. Bootstrap 0.1.0 with a publish-new API token; this OIDC workflow is only for later releases."
+            exit 1
+          fi
+
+          version_status="$(curl --location --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            --header 'User-Agent: llm-stream-guard-release (https://github.com/airouter-dev/llm-stream-guard)' \
+            "https://crates.io/api/v1/crates/llm-stream-guard/$version")"
+          if [ "$version_status" != "404" ]; then
+            echo "::error::Expected the target version to be absent (HTTP 404); got HTTP $version_status."
+            exit 1
+          fi
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets --all-features --locked -- -D warnings
+      - run: cargo test --all-targets --all-features --locked
+      - run: cargo doc --all-features --no-deps --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
+      - run: cargo publish --locked --dry-run
+        env:
+          RUSTFLAGS: -D warnings
+      - name: Exchange GitHub OIDC for a short-lived crates.io token
+        id: auth
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
+      - name: Publish the verified crate
+        run: cargo publish --locked
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}

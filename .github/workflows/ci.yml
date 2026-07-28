@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Format, lint, test, docs, and package
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master, pinned 2026-07-29
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets --all-features --locked -- -D warnings
+      - run: cargo test --all-targets --all-features --locked
+      - run: cargo test --all-targets --no-default-features --locked
+      - run: cargo test --doc --all-features --locked
+      - run: cargo doc --all-features --no-deps --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
+      - name: Inspect publishable crate contents
+        run: |
+          package_files="$(cargo package --locked --list)"
+          printf '%s\n' "$package_files"
+          for required in Cargo.toml README.md CHANGELOG.md SECURITY.md CONTRIBUTING.md RELEASING.md LICENSE-MIT LICENSE-APACHE src/lib.rs src/core.rs src/openai.rs; do
+            if ! printf '%s\n' "$package_files" | grep --fixed-strings --line-regexp "$required" >/dev/null; then
+              echo "::error::The crate is missing required file: $required"
+              exit 1
+            fi
+          done
+          if printf '%s\n' "$package_files" | grep --extended-regexp '^(\.github/|target/|marketing/)'; then
+            echo "::error::The crate contains an excluded internal path."
+            exit 1
+          fi
+      - run: cargo package --locked
+        env:
+          RUSTFLAGS: -D warnings
+
+  msrv:
+    name: MSRV 1.75.0
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master, pinned 2026-07-29
+        with:
+          toolchain: 1.75.0
+      - run: cargo test --all-targets --all-features --locked
+      - run: cargo test --all-targets --no-default-features --locked
+
+  platforms:
+    name: Stable tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master, pinned 2026-07-29
+        with:
+          toolchain: stable
+      - run: cargo test --all-targets --all-features --locked
+      - run: cargo test --all-targets --no-default-features --locked
+
+  supply-chain:
+    name: Advisories, licenses, bans, and sources
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check
+          arguments: --all-features
