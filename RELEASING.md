@@ -41,7 +41,8 @@ and dry run before requesting a short-lived OIDC token.
 After creating or changing that binding, dispatch `release.yml` with the
 `verify-trusted-publisher` operation. This exchanges GitHub OIDC for a temporary
 crates.io token, checks that a token was issued, publishes nothing, and relies
-on the authentication action's post step to revoke the token. Use the
+on the authentication action's post step to revoke the token. The temporary
+token expires after 30 minutes even if a runner failure prevents cleanup. Use the
 `publish` operation only for a real reviewed release; it additionally requires
 the exact release tag and `llm-stream-guard@X.Y.Z` confirmation.
 
