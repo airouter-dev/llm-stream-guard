@@ -38,5 +38,12 @@ the manually dispatched release workflow, which checks the existing tag,
 version, main-branch ancestry, absent registry version, tests, documentation,
 and dry run before requesting a short-lived OIDC token.
 
+After creating or changing that binding, dispatch `release.yml` with the
+`verify-trusted-publisher` operation. This exchanges GitHub OIDC for a temporary
+crates.io token, checks that a token was issued, publishes nothing, and relies
+on the authentication action's post step to revoke the token. Use the
+`publish` operation only for a real reviewed release; it additionally requires
+the exact release tag and `llm-stream-guard@X.Y.Z` confirmation.
+
 Never add a long-lived token fallback to `release.yml`. Do not publish a patch
 version solely to test authentication; use the next real, reviewed change.
