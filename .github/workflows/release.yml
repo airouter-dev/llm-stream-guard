@@ -78,7 +78,7 @@ jobs:
           ref: refs/tags/${{ inputs.release_tag }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@2c7215f132e9ebf062739d9130488b56d53c060c # master, pinned 2026-07-29
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master, pinned 2026-07-29
         with:
           toolchain: stable
           components: clippy, rustfmt
